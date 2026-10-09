@@ -27,6 +27,20 @@ std::string ReadProcFile(const std::string& path) {
     return out;
 }
 
+std::string ReadWholeFile(const std::string& path) {
+    const int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return {};
+    std::string out;
+    char buf[65536];
+    for (;;) {
+        const ssize_t n = ::read(fd, buf, sizeof(buf));
+        if (n <= 0) break;
+        out.append(buf, static_cast<std::size_t>(n));
+    }
+    ::close(fd);
+    return out;
+}
+
 std::string EnvValue(const std::string& environ_blob, const char* key) {
     const std::string needle = std::string(key) + "=";
     std::size_t pos = 0;
@@ -127,6 +141,9 @@ std::vector<Prefix> FindPrefixes() {
         const auto existing = std::find_if(found.begin(), found.end(),
             [&](const Prefix& p) { return p.path == prefix; });
         if (existing != found.end()) {
+            if (game_process && !existing->has_game_process) {
+                existing->pid = static_cast<pid_t>(std::atoi(entry->d_name));
+            }
             existing->has_game_process = existing->has_game_process || game_process;
             if (existing->wine_binary.empty()) existing->wine_binary = wine_binary;
             continue;
@@ -148,6 +165,35 @@ std::vector<Prefix> FindPrefixes() {
     }), found.end());
 
     return found;
+}
+
+std::string StageForPrefix(const Prefix& prefix, const std::string& exe_path) {
+    const std::string seen_from_game =
+        "/proc/" + std::to_string(prefix.pid) + "/root" + exe_path;
+    if (prefix.pid > 0 && ::access(seen_from_game.c_str(), R_OK) == 0) return exe_path;
+
+    const std::string source = ReadWholeFile(exe_path);
+    if (source.empty()) return exe_path;
+
+    const std::size_t slash = exe_path.rfind('/');
+    const std::string name = slash == std::string::npos ? exe_path : exe_path.substr(slash + 1);
+    const std::string dir = prefix.path + "/drive_c/ProgramData/tobii-faithful";
+    const std::string staged = dir + "/" + name;
+    if (ReadWholeFile(staged) == source) return staged;
+
+    ::mkdir((prefix.path + "/drive_c/ProgramData").c_str(), 0755);
+    ::mkdir(dir.c_str(), 0755);
+    const std::string partial = staged + ".partial";
+    const int fd = ::open(partial.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0755);
+    if (fd < 0) return exe_path;
+    const bool written =
+        ::write(fd, source.data(), source.size()) == static_cast<ssize_t>(source.size());
+    ::close(fd);
+    if (!written || ::rename(partial.c_str(), staged.c_str()) != 0) {
+        ::unlink(partial.c_str());
+        return exe_path;
+    }
+    return staged;
 }
 
 pid_t LaunchInPrefix(const std::string& prefix_path, const std::string& exe_path,

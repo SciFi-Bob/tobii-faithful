@@ -908,8 +908,87 @@ static DWORD WINAPI service_worker(LPVOID arg)
     return 0;
 }
 
+typedef LONG(WINAPI *NtSetInformationProcessFn)(HANDLE Process, ULONG InfoClass, PVOID Info,
+                                                ULONG InfoLength);
+typedef LONG(WINAPI *NtQueryInformationProcessFn)(HANDLE Process, ULONG InfoClass, PVOID Info,
+                                                  ULONG InfoLength, PULONG ReturnLength);
+typedef HANDLE(CDECL *WineMakeProcessSystemFn)(void);
+
+#define WINE_MAKE_PROCESS_SYSTEM 1000
+
+static int make_wine_system_process(NtSetInformationProcessFn set_info, HANDLE process)
+{
+    HANDLE shutdown_event = NULL;
+    return set_info(process, WINE_MAKE_PROCESS_SYSTEM, &shutdown_event,
+                    sizeof(&shutdown_event)) == 0;
+}
+
+static void make_start_exe_parent_system(HMODULE ntdll, NtSetInformationProcessFn set_info)
+{
+    union {
+        FARPROC raw;
+        NtQueryInformationProcessFn typed;
+    } query_info = {0};
+    query_info.raw = GetProcAddress(ntdll, "NtQueryInformationProcess");
+    if (!query_info.typed)
+        return;
+
+    struct {
+        LONG exit_status;
+        PVOID peb;
+        ULONG_PTR affinity;
+        LONG base_priority;
+        ULONG_PTR pid;
+        ULONG_PTR parent_pid;
+    } basic = {0};
+    if (query_info.typed(GetCurrentProcess(), 0  , &basic,
+                         sizeof(basic), NULL) != 0)
+        return;
+
+    HANDLE parent = OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION,
+                                FALSE, (DWORD)basic.parent_pid);
+    if (!parent)
+        return;
+    char image[MAX_PATH];
+    DWORD length = sizeof(image);
+    if (QueryFullProcessImageNameA(parent, 0, image, &length)) {
+        const char *base = strrchr(image, '\\');
+        base = base ? base + 1 : image;
+        if (!_stricmp(base, "start.exe"))
+            make_wine_system_process(set_info, parent);
+    }
+    CloseHandle(parent);
+}
+
+static void become_wine_system_process(void)
+{
+    HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+    if (!ntdll)
+        return;
+
+    union {
+        FARPROC raw;
+        NtSetInformationProcessFn typed;
+    } set_info = {0};
+    set_info.raw = GetProcAddress(ntdll, "NtSetInformationProcess");
+    if (set_info.typed && make_wine_system_process(set_info.typed, GetCurrentProcess())) {
+        make_start_exe_parent_system(ntdll, set_info.typed);
+        return;
+    }
+
+    union {
+        FARPROC raw;
+        WineMakeProcessSystemFn typed;
+    } legacy = {0};
+    legacy.raw = GetProcAddress(ntdll, "__wine_make_process_system");
+    if (legacy.typed)
+        legacy.typed();
+}
+
 int main(int argc, char **argv)
 {
+    become_wine_system_process();
+
     DWORD seconds = 35;
     const char *pipe_name = "\\\\.\\pipe\\streamengineservices";
     const char *suffix_scan_env = getenv("SC_TOBII_PIPE_SUFFIX_SCAN");

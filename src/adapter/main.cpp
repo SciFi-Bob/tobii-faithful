@@ -380,9 +380,10 @@ int main(int argc, char** argv) {
                     "--pipe", "\\\\.\\pipe\\TOBIIPRP-" + opt.device_serial,
                 }});
 
+                const std::string bridge_exe = tobii::wine::StageForPrefix(prefix, opt.bridge_exe);
                 for (auto& instance : instances) {
                     Bridge bridge;
-                    bridge.pid = tobii::wine::LaunchInPrefix(prefix.path, opt.bridge_exe,
+                    bridge.pid = tobii::wine::LaunchInPrefix(prefix.path, bridge_exe,
                                                              instance.args, prefix.wine_binary,
                                                              &bridge.out_fd);
                     if (bridge.pid > 0) {
@@ -427,7 +428,8 @@ int main(int argc, char** argv) {
                 }
             }
             if (bridges.empty()) {
-                const bool worked = bridge_up_since_s > 0.0 && now - bridge_up_since_s > 30.0;
+                const bool worked = (bridge_up_since_s > 0.0 && now - bridge_up_since_s > 30.0) ||
+                                    !GameStillRunning(catalogue, judge);
                 if (worked) {
                     bridge_failures = 0;
                     bridge_death_recorded = false;
