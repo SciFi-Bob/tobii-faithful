@@ -293,7 +293,7 @@ int main(int argc, char** argv) {
             daemon_fd = ConnectDaemon(opt.daemon_socket);
             if (daemon_fd >= 0) {
                 const std::string sub =
-                    "{\"cmd\":\"subscribe\",\"stream\":\"pose\",\"hold\":true}\n";
+                    "{\"cmd\":\"subscribe\",\"stream\":\"pose\",\"hold\":true,\"game\":true}\n";
                 ::send(daemon_fd, sub.data(), sub.size(), MSG_NOSIGNAL);
                 subscribed = true;
                 device_info_known = false;

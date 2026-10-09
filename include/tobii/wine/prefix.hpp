@@ -14,6 +14,8 @@ struct Prefix {
     std::string wine_binary;
 };
 
+bool IsGameProcess(const std::string& cmdline);
+
 std::vector<Prefix> FindPrefixes();
 
 std::string ServerDirFor(const std::string& prefix_path);

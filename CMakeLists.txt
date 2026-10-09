@@ -92,7 +92,8 @@ if(TOBII_INSTALL_UDEV_RULES)
             DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/udev/rules.d)
 endif()
 
-install(FILES configs/desktop/tobii-manager.desktop
+install(FILES configs/desktop/tobii-faithful.desktop
+              configs/desktop/tobii-manager.desktop
         DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(FILES configs/desktop/tobii-faithful.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)

@@ -267,6 +267,7 @@ int main(int argc, char** argv) {
         ctx.counters.device_present = presence.Get(NowSeconds(), device_open);
         ctx.counters.clients = server.client_count();
         ctx.counters.holders = server.device_holders();
+        ctx.counters.games = server.game_clients();
         ctx.counters.fps = frame_rate;
         ctx.counters.frames = frames;
         ctx.counters.poses = poses;

@@ -64,6 +64,7 @@ std::string WineBinaryFrom(const std::string& exe_path) {
 
 bool IsWineService(const std::string& cmdline) {
     static const char* kServices[] = {
+        "wineserver",
         "services.exe", "winedevice.exe", "plugplay.exe", "explorer.exe",
         "svchost.exe", "rpcss.exe", "lsass.exe", "conhost.exe", "wineboot.exe",
         "tabtip.exe", "start.exe", "winemenubuilder.exe", "rundll32.exe",
@@ -78,6 +79,10 @@ bool IsOurHelper(const std::string& cmdline) {
     return cmdline.find("tobii-sesp-bridge") != std::string::npos;
 }
 
+}
+
+bool IsGameProcess(const std::string& cmdline) {
+    return !cmdline.empty() && !IsWineService(cmdline) && !IsOurHelper(cmdline);
 }
 
 std::string ServerDirFor(const std::string& prefix_path) {
@@ -117,8 +122,7 @@ std::vector<Prefix> FindPrefixes() {
             }
         }
 
-        const bool game_process = !cmdline.empty() && !IsWineService(cmdline) &&
-                                  !IsOurHelper(cmdline);
+        const bool game_process = IsGameProcess(cmdline);
 
         const auto existing = std::find_if(found.begin(), found.end(),
             [&](const Prefix& p) { return p.path == prefix; });

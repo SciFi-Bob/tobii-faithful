@@ -12,6 +12,7 @@ struct Client {
     bool wants_pose = false;
     bool holds_device = false;
     bool wants_diagnostics = false;
+    bool is_game = false;
 };
 
 class Server {
@@ -37,6 +38,7 @@ public:
 
     std::size_t client_count() const { return clients_.size(); }
     std::size_t device_holders() const;
+    std::size_t game_clients() const;
 
     const std::string& error() const { return error_; }
     const std::string& path() const { return path_; }

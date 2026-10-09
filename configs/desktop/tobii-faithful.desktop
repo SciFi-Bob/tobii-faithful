@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Faithful Tobii
+GenericName=Eye tracker
+Comment=Head tracking and gaze for games, from the tray
+Exec=tobii-tray
+Icon=tobii-faithful
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=eye;tracker;tobii;gaze;head;tracking;

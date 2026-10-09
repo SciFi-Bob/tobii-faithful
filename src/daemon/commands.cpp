@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <unistd.h>
 #include <vector>
 
 namespace tobii::daemon {
@@ -84,12 +85,12 @@ std::string StatusLine(const CommandContext& ctx) {
     char buf[1024];
     const int written = std::snprintf(buf, sizeof(buf),
         "{\"type\":\"status\",\"version\":%d,\"device\":\"%s\",\"present\":%s,"
-        "\"clients\":%zu,\"holders\":%zu,\"fps\":%.1f,\"frames\":%llu,\"poses\":%llu,"
-        "\"face\":%s,\"display_mm\":[%.1f,%.1f],\"display_px\":[%d,%d],"
+        "\"clients\":%zu,\"holders\":%zu,\"game\":%s,\"fps\":%.1f,\"frames\":%llu,"
+        "\"poses\":%llu,\"face\":%s,\"display_mm\":[%.1f,%.1f],\"display_px\":[%d,%d],"
         "\"error\":\"%s\"}\n",
         ipc::kProtocolVersion, c.device_open ? "open" : "closed",
         c.device_present ? "true" : "false",
-        c.clients, c.holders, c.fps,
+        c.clients, c.holders, c.games > 0 ? "true" : "false", c.fps,
         static_cast<unsigned long long>(c.frames),
         static_cast<unsigned long long>(c.poses),
         ctx.pipeline.face_tracked() ? "true" : "false",
@@ -211,6 +212,7 @@ void HandleCommand(CommandContext& ctx, const std::string& line) {
         ctx.client->wants_pose = true;
         ctx.client->holds_device = ipc::JsonBool(line, "hold", true);
         ctx.client->wants_diagnostics = ipc::JsonBool(line, "diagnostics", false);
+        ctx.client->is_game = ipc::JsonBool(line, "game", false);
         return;
     }
 
@@ -219,6 +221,7 @@ void HandleCommand(CommandContext& ctx, const std::string& line) {
         ctx.client->wants_pose = false;
         ctx.client->holds_device = false;
         ctx.client->wants_diagnostics = false;
+        ctx.client->is_game = false;
         return;
     }
 
@@ -281,11 +284,14 @@ void HandleCommand(CommandContext& ctx, const std::string& line) {
 
     if (cmd == "reload-profile") {
         calibration::Profile reloaded;
-        if (reloaded.Load(ctx.profile_path)) {
+        if (::access(ctx.profile_path.c_str(), F_OK) != 0) {
+            ctx.pipeline.set_profile(calibration::Profile{});
+            ReplyOk(ctx, "reload-profile");
+        } else if (reloaded.Load(ctx.profile_path)) {
             ctx.pipeline.set_profile(reloaded);
             ReplyOk(ctx, "reload-profile");
         } else {
-            ReplyError(ctx, "no profile to load");
+            ReplyError(ctx, "profile did not load");
         }
         return;
     }
@@ -320,6 +326,11 @@ void HandleCommand(CommandContext& ctx, const std::string& line) {
             is_cal = false;
         }
         if (is_cal) {
+            if (ctx.counters.games > 0 && action.verb != Verb::kStop &&
+                action.verb != Verb::kApply && action.verb != Verb::kEnabledEye) {
+                ReplyError(ctx, "a game is using the tracker; close it to calibrate");
+                return;
+            }
             if (!ctx.calibrate) { ReplyError(ctx, "device calibration not available"); return; }
             std::string message;
             if (ctx.calibrate(action, message)) {

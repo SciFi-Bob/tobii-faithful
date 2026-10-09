@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdio>
 #include <limits>
+#include <sstream>
 
 namespace tobii::manager {
 namespace {
@@ -141,6 +142,7 @@ void CalibrationUi::SetMonitor(int index) {
 }
 
 void CalibrationUi::StartScreenSetup() {
+    if (game_running_) return;
     mark_left_ = 0.42f;
     mark_right_ = 0.58f;
     dragging_mark_ = -1;
@@ -149,7 +151,15 @@ void CalibrationUi::StartScreenSetup() {
 }
 
 void CalibrationUi::StartSetup() {
+    if (game_running_) return;
     improve_ = false;
+    setup_backup_.reset();
+    if (std::ifstream existing(profile_path_); existing) {
+        std::ostringstream contents;
+        contents << existing.rdbuf();
+        setup_backup_ = contents.str();
+    }
+    setup_in_progress_ = true;
     std::remove(profile_path_.c_str());
     profile_ = calibration::Profile{};
     client_.ReloadProfile();
@@ -159,6 +169,7 @@ void CalibrationUi::StartSetup() {
 }
 
 void CalibrationUi::StartGaze(bool improve) {
+    if (game_running_) return;
     improve_ = improve;
     const double w = profile_.display.width_mm > 1.0f ? profile_.display.width_mm : 600.0;
     const double h = profile_.display.height_mm > 1.0f ? profile_.display.height_mm : 340.0;
@@ -204,7 +215,29 @@ void CalibrationUi::LayOutTargets(int grid, float eye_distance_mm) {
 }
 
 void CalibrationUi::Cancel() {
-    if (mode_ == Mode::kGaze) client_.CalStop();
+    if (setup_in_progress_) {
+        if (setup_backup_) {
+            const std::string tmp = profile_path_ + ".tmp";
+            bool written = false;
+            {
+                std::ofstream out(tmp, std::ios::trunc);
+                out << *setup_backup_;
+                written = static_cast<bool>(out);
+            }
+            if (written) std::rename(tmp.c_str(), profile_path_.c_str());
+            else std::remove(tmp.c_str());
+        }
+        profile_ = calibration::Profile{};
+        profile_.Load(profile_path_);
+        client_.ReloadProfile();
+    }
+    if (mode_ == Mode::kGaze) {
+        client_.CalStop();
+        client_.SetEnabledEye(3);
+        client_.CalApply();
+    }
+    setup_in_progress_ = false;
+    setup_backup_.reset();
     chain_to_gaze_ = false;
     gaze_preroll_ = false;
     mode_ = Mode::kIdle;
@@ -255,10 +288,18 @@ void CalibrationUi::FinishGaze() {
     bool all = !cal_collected_.empty();
     for (const bool c : cal_collected_) if (!c) all = false;
     status_ = all ? "tracker calibrated" : "calibration cancelled";
+    setup_in_progress_ = false;
+    setup_backup_.reset();
     mode_ = Mode::kIdle;
 }
 
 bool CalibrationUi::Draw(GLFWwindow* window, const Snapshot& snapshot, double now_s) {
+    game_running_ = snapshot.game;
+    if (game_running_ && mode_ != Mode::kIdle) {
+        Cancel();
+        LeaveFullscreen(window);
+        return false;
+    }
     if (mode_ == Mode::kIdle) {
         LeaveFullscreen(window);
         return false;

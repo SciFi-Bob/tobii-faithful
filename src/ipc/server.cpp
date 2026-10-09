@@ -99,6 +99,14 @@ std::size_t Server::device_holders() const {
     return n;
 }
 
+std::size_t Server::game_clients() const {
+    std::size_t n = 0;
+    for (const auto& c : clients_) {
+        if (c.is_game) ++n;
+    }
+    return n;
+}
+
 void Server::Drop(std::size_t index) {
     if (index >= clients_.size()) return;
     if (clients_[index].fd >= 0) ::close(clients_[index].fd);

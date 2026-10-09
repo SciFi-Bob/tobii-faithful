@@ -15,6 +15,7 @@ struct StatusCounters {
     bool device_present = false;
     std::size_t clients = 0;
     std::size_t holders = 0;
+    std::size_t games = 0;
     double fps = 0.0;
     std::uint64_t frames = 0;
     std::uint64_t poses = 0;

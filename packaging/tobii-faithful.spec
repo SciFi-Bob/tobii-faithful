@@ -112,6 +112,7 @@ fi
 %{_bindir}/tobii-tray
 %{_libdir}/tobii-faithful/
 %{_datadir}/tobii-faithful/
+%{_datadir}/applications/tobii-faithful.desktop
 %{_datadir}/applications/tobii-manager.desktop
 %{_datadir}/icons/hicolor/scalable/apps/tobii-faithful.svg
 %{_sysconfdir}/xdg/autostart/tobii-tray.desktop

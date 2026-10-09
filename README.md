@@ -52,7 +52,8 @@ next time they start, so log out and back in, or quit and reopen them.
 | `/usr/lib/systemd/user/tobiid.service`, `tobii-adapter.service` | user services |
 | `/usr/lib/systemd/user-preset/80-tobii-faithful.preset` | enables those services |
 | `/etc/xdg/autostart/tobii-tray.desktop` | starts the tray with your session |
-| `/usr/share/applications/tobii-manager.desktop`, icon | menu entry |
+| `/usr/share/applications/tobii-faithful.desktop`, icon | menu entry; starts the tray |
+| `/usr/share/applications/tobii-manager.desktop` | hidden; gives the settings window its icon |
 
 Your settings are kept in `~/.config/tobii-faithful/`. Removing the package
 removes everything in the table and stops the running programs; it leaves your

@@ -160,6 +160,7 @@ void Client::HandleLine(const std::string& line) {
         std::lock_guard<std::mutex> lock(mutex_);
         Number(line, "fps", snapshot_.fps);
         snapshot_.device_open = StringField(line, "device") == "open";
+        snapshot_.game = Flag(line, "game");
         snapshot_.error = StringField(line, "error");
         return;
     }
@@ -217,9 +218,10 @@ void Client::Run() {
                 continue;
             }
             buffer.clear();
-            const std::string sub = "{\"cmd\":\"subscribe\",\"stream\":\"pose\",\"hold\":true}\n";
-            ::send(fd, sub.data(), sub.size(), MSG_NOSIGNAL);
             std::lock_guard<std::mutex> lock(mutex_);
+            const std::string sub = std::string("{\"cmd\":\"subscribe\",\"stream\":\"pose\",\"hold\":") +
+                                    (hold_wanted_ ? "true" : "false") + "}\n";
+            ::send(fd, sub.data(), sub.size(), MSG_NOSIGNAL);
             snapshot_.connected = true;
         }
 

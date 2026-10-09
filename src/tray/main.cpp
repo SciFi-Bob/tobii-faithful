@@ -2,6 +2,7 @@
 #include "tobii/eventlog.hpp"
 #include "tobii/games/catalogue.hpp"
 #include "tobii/ipc/protocol.hpp"
+#include "tobii/manager/single_instance.hpp"
 #include "tobii/paths.hpp"
 #include "tobii/tray/eye_icon.hpp"
 
@@ -431,6 +432,12 @@ int main(int argc, char** argv) {
     if (g_state.manager_path.empty()) {
         tobii::eventlog::Record("Tray failed to start: cannot find tobii-manager");
         return 1;
+    }
+
+    tobii::manager::SingleInstance instance("tray");
+    if (!instance.owner()) {
+        OpenManager();
+        return 0;
     }
 
     {

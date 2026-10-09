@@ -8,4 +8,5 @@ Icon=tobii-faithful
 Terminal=false
 Categories=Settings;HardwareSettings;
 Keywords=eye;tracker;tobii;gaze;head;tracking;
+NoDisplay=true
 StartupWMClass=tobii-manager

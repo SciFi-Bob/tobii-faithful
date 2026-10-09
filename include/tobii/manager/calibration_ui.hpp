@@ -99,6 +99,9 @@ private:
     bool chain_to_gaze_ = false;
     bool improve_ = false;
     int enabled_eye_ = 3;
+    bool setup_in_progress_ = false;
+    std::optional<std::string> setup_backup_;
+    bool game_running_ = false;
 
     float mark_left_ = 0.42f, mark_right_ = 0.58f;
     int dragging_mark_ = -1;

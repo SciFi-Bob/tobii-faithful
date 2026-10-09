@@ -442,7 +442,7 @@ int main(int argc, char** argv) {
             }
             ImGui::Spacing();
 
-            ImGui::BeginDisabled(!screen_selected);
+            ImGui::BeginDisabled(!screen_selected || snapshot.game);
             DoneButton("Calibrate", {190, 32}, set_up,
                        [&] { calibration.StartSetup(); });
             ImGui::SameLine();
@@ -451,7 +451,9 @@ int main(int argc, char** argv) {
                        [&] { calibration.StartGaze(true); });
             ImGui::EndDisabled();
             ImGui::EndDisabled();
-            if (!screen_selected) {
+            if (snapshot.game) {
+                ImGui::TextDisabled("A game is using the tracker. Close it to calibrate.");
+            } else if (!screen_selected) {
                 ImGui::TextDisabled("Choose the screen the tracker sits under to calibrate.");
             }
 

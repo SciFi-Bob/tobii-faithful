@@ -16,6 +16,7 @@ struct Snapshot {
     bool present = false;
     bool gaze_valid = false;
     bool device_open = false;
+    bool game = false;
     std::string last_reply;
     bool last_reply_ok = true;
 
@@ -71,6 +72,10 @@ public:
         Send("{\"cmd\":\"enabled-eye\",\"eye\":" + std::to_string(eye) + "}\n");
     }
     void SetHold(bool hold) {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            hold_wanted_ = hold;
+        }
         Send(std::string("{\"cmd\":\"hold\",\"device\":") + (hold ? "true" : "false") + "}\n");
     }
 
@@ -93,6 +98,7 @@ private:
     std::vector<std::string> outbox_;
     bool stop_ = false;
     bool frame_wanted_ = false;
+    bool hold_wanted_ = true;
 };
 
 }
