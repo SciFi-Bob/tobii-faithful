@@ -1,0 +1,15 @@
+[Unit]
+Description=Tobii Eye Tracker 5 game adapter
+Documentation=@TOBII_PROJECT_URL@
+Wants=tobiid.service
+After=tobiid.service graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/tobii-adapter
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=graphical-session.target

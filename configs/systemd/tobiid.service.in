@@ -1,0 +1,16 @@
+[Unit]
+Description=Tobii Eye Tracker 5 head pose and gaze service
+Documentation=@TOBII_PROJECT_URL@
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=@CMAKE_INSTALL_FULL_BINDIR@/tobiid
+Restart=on-failure
+RestartSec=2
+SuccessExitStatus=0
+NoNewPrivileges=yes
+PrivateTmp=no
+
+[Install]
+WantedBy=graphical-session.target

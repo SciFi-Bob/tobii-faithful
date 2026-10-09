@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Faithful Tobii
+GenericName=Eye tracker settings
+Comment=See what the tracker sees, and calibrate it
+Exec=tobii-manager
+Icon=tobii-faithful
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=eye;tracker;tobii;gaze;head;tracking;
+StartupWMClass=tobii-manager

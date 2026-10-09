@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Faithful Tobii (tray)
+Comment=An eye in the system tray: whether the tracker is awake, and a way in
+Exec=tobii-tray
+Icon=tobii-faithful
+Terminal=false
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The same eye tobii-tray draws in src/tray/eye_icon.cpp, as a file, for the
+     application menu and the window manager. Kept in step by eye rather than
+     generated: it is one shape and it has not changed. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <g fill="none" stroke="#6ec4ff" stroke-width="3.2" stroke-linecap="round">
+    <!-- The lid: an almond, widest at the centre. -->
+    <path d="M5 24c6.5-9 12.8-13 19-13s12.5 4 19 13c-6.5 9-12.8 13-19 13S11.5 33 5 24z"/>
+  </g>
+  <circle cx="24" cy="24" r="6.6" fill="#6ec4ff"/>
+  <circle cx="24" cy="24" r="2.6" fill="#0d1117"/>
+  <!-- A highlight, so it reads as an eye rather than a target at small sizes. -->
+  <circle cx="26.4" cy="21.2" r="1.5" fill="#dff1ff"/>
+</svg>
