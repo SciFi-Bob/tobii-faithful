@@ -43,12 +43,31 @@ find_package(OpenGL)
 pkg_check_modules(OPENSSL REQUIRED IMPORTED_TARGET libcrypto)
 
 find_path(ONNXRUNTIME_INCLUDE_DIR onnxruntime_cxx_api.h
+          HINTS ${ONNXRUNTIME_ROOT}/include
           PATH_SUFFIXES onnxruntime onnxruntime/core/session)
-find_library(ONNXRUNTIME_LIB NAMES onnxruntime)
+find_library(ONNXRUNTIME_LIB NAMES onnxruntime HINTS ${ONNXRUNTIME_ROOT}/lib)
 if(NOT ONNXRUNTIME_INCLUDE_DIR OR NOT ONNXRUNTIME_LIB)
   message(FATAL_ERROR "onnxruntime not found - install onnxruntime-devel")
 endif()
 message(STATUS "onnxruntime: ${ONNXRUNTIME_LIB}")
+
+option(TOBII_BUNDLE_ONNXRUNTIME
+       "Install ONNXRUNTIME_LIB privately in the libexec directory. On for a package." OFF)
+if(TOBII_BUNDLE_ONNXRUNTIME)
+    get_filename_component(ONNXRUNTIME_REAL "${ONNXRUNTIME_LIB}" REALPATH)
+    execute_process(COMMAND objdump -p "${ONNXRUNTIME_REAL}"
+                    OUTPUT_VARIABLE _ort_dyn COMMAND_ERROR_IS_FATAL ANY)
+    string(REGEX MATCH "SONAME +([^\n ]+)" _ "${_ort_dyn}")
+    if(NOT CMAKE_MATCH_1)
+        message(FATAL_ERROR "no SONAME in ${ONNXRUNTIME_REAL}")
+    endif()
+    install(FILES "${ONNXRUNTIME_REAL}" DESTINATION ${CMAKE_INSTALL_LIBDIR}/tobii-faithful
+            RENAME "${CMAKE_MATCH_1}"
+            PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE
+                        WORLD_READ WORLD_EXECUTE)
+    set(CMAKE_INSTALL_RPATH "${TOBII_LIBEXEC}")
+    message(STATUS "onnxruntime: bundled as ${TOBII_LIBEXEC}/${CMAKE_MATCH_1}")
+endif()
 
 add_subdirectory(src/paths)
 add_subdirectory(src/eventlog)

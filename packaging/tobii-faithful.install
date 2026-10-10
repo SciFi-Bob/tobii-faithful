@@ -1,0 +1,62 @@
+_units="tobiid.service tobii-adapter.service"
+
+_udev_reload() {
+    udevadm control --reload-rules >/dev/null 2>&1 || :
+    udevadm trigger --subsystem-match=usb --attr-match=idVendor=2104 >/dev/null 2>&1 || :
+}
+
+_each_session() {
+    local uid user
+    for uid in $(loginctl list-users --no-legend 2>/dev/null | awk '{print $1}'); do
+        user="$(id -nu "$uid" 2>/dev/null)" || continue
+        systemctl is-active --quiet "user@$uid.service" || continue
+        systemctl --user --machine="$user@" daemon-reload >/dev/null 2>&1 || continue
+        "$@" "$user" || :
+    done
+}
+
+_start_in() {
+    local user="$1"
+    systemctl --user --machine="$user@" start $_units >/dev/null 2>&1 || :
+    if systemctl --user --machine="$user@" show-environment 2>/dev/null \
+            | grep -qE '^(WAYLAND_DISPLAY|DISPLAY)='; then
+        systemd-run --user --machine="$user@" --quiet --collect \
+            --unit=tobii-tray-first-start \
+            --property=PartOf=graphical-session.target \
+            --property=After=graphical-session.target \
+            /usr/bin/tobii-tray >/dev/null 2>&1 || :
+    fi
+}
+
+_restart_in() {
+    systemctl --user --machine="$1@" try-restart $_units >/dev/null 2>&1 || :
+}
+
+_stop_in() {
+    systemctl --user --machine="$1@" stop $_units >/dev/null 2>&1 || :
+}
+
+post_install() {
+    _udev_reload
+    systemctl --global enable $_units >/dev/null 2>&1 || :
+    _each_session _start_in
+}
+
+post_upgrade() {
+    _udev_reload
+    _each_session _restart_in
+}
+
+pre_remove() {
+    systemctl --global disable $_units >/dev/null 2>&1 || :
+    _each_session _stop_in
+    local p
+    for p in tobii-tray tobii-manager tobii-adapter tobiid; do
+        pkill -x "$p" >/dev/null 2>&1 || :
+    done
+    pkill -f tobii-sesp-bridge.exe >/dev/null 2>&1 || :
+}
+
+post_remove() {
+    udevadm control --reload-rules >/dev/null 2>&1 || :
+}

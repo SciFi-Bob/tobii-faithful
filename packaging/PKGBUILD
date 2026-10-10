@@ -1,0 +1,43 @@
+pkgname=tobii-faithful
+pkgver=${TF_VERSION:-0.1.0}
+pkgrel=${TF_RELEASE:-1}
+pkgdesc="Linux runtime for the Tobii Eye Tracker 5: head tracking and gaze for games"
+arch=(x86_64)
+url=${TF_URL:-https://github.com/SciFi-Bob/tobii-faithful}
+license=(Apache-2.0 MIT)
+depends=(libusb openssl glfw systemd-libs systemd libglvnd xorg-xrandr hicolor-icon-theme
+         gcc-libs glibc)
+makedepends=(cmake ninja mingw-w64-gcc eigen)
+optdepends=('wine: for games run under Wine or Lutris rather than Proton')
+if [[ -z ${TF_DEPS:-} ]]; then
+    depends+=(opencv onnxruntime-cpu)
+fi
+options=(!debug !lto strip)
+install=tobii-faithful.install
+source=("$pkgname-$pkgver.tar.gz")
+sha256sums=(SKIP)
+
+build() {
+    cmake -S "$pkgname-$pkgver" -B build -G Ninja \
+        ${TF_DEPS:+-C "$TF_DEPS/deps.cmake"} \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DCMAKE_INSTALL_LIBDIR=lib \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_TESTING=OFF \
+        -DTOBII_REQUIRE_BRIDGE=ON \
+        -DTOBII_INSTALL_UDEV_RULES=OFF \
+        -DTOBII_SYSTEMD_USER_UNIT_DIR=/usr/lib/systemd/user \
+        -DTOBII_PROJECT_URL="$url"
+    cmake --build build
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+    cd "$pkgname-$pkgver"
+    install -Dm0644 configs/udev/60-tobii-eyetracker5.rules \
+        "$pkgdir/usr/lib/udev/rules.d/60-tobii-eyetracker5.rules"
+    local lic="$pkgdir/usr/share/licenses/$pkgname"
+    install -Dm0644 -t "$lic" LICENSE THIRD-PARTY-NOTICES.md third_party/imgui/LICENSE.txt
+    install -Dm0644 -t "$lic/licenses" licenses/*
+}

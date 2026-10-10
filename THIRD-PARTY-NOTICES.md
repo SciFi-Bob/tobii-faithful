@@ -46,6 +46,39 @@ modules) are compiled into `tobiid`, built with
 Eigen is available from the URL above, and in your distribution's
 `eigen3-devel` package.
 
+## OpenCV
+
+Copyright the OpenCV authors. Licensed under the Apache License 2.0; the licence
+text is `licenses/opencv-LICENSE.txt`. Source: <https://github.com/opencv/opencv>.
+
+Version 4.13.0, built unmodified as static libraries (the core, imgproc and
+imgcodecs modules only) and linked into `tobiid` and `tobii-manager`. The build
+is `release/deps/build-deps.sh` in the source tree (`packaging/build-deps.sh` in
+the published one). It includes these components, from OpenCV's own source
+tree, also unmodified:
+
+- **zlib**: Copyright (C) 1995-2022 Jean-loup Gailly and Mark Adler. zlib
+  licence; `licenses/zlib-LICENSE.txt`.
+- **libjpeg-turbo**: the IJG licence, the Modified (3-clause) BSD licence and the
+  zlib licence; `licenses/libjpeg-turbo-LICENSE.md` and
+  `licenses/libjpeg-turbo-README.ijg`. This software is based in part on the
+  work of the Independent JPEG Group.
+- **libpng**: the PNG Reference Library License version 2;
+  `licenses/libpng-LICENSE.txt`.
+- **Berkeley SoftFloat**: Copyright 2011-2017 The Regents of the University of
+  California. 3-clause BSD licence; `licenses/SoftFloat-COPYING.txt`.
+
+## ONNX Runtime
+
+Copyright (c) Microsoft Corporation. Licensed under the MIT licence; the licence
+text is `licenses/onnxruntime-LICENSE.txt`, and the notices for the components
+it contains are `licenses/onnxruntime-ThirdPartyNotices.txt`. Source:
+<https://github.com/microsoft/onnxruntime>.
+
+Version 1.22.0, Microsoft's unmodified prebuilt Linux x64 release. Its library
+is installed as `libonnxruntime.so.1` under `/usr/lib64/tobii-faithful/` (`/usr/lib/tobii-faithful/` on Arch), used
+only by tobii-faithful's own programs.
+
 ## mingw-w64 runtime
 
 Copyright (c) 2009 - 2013 by the mingw-w64 project. Licensed under the Zope
@@ -55,7 +88,7 @@ Public License 2.1, with parts in the public domain; the licence texts are
 <https://www.mingw-w64.org/>.
 
 The mingw-w64 C runtime start-up code is statically linked into
-`tobii-sesp-bridge.exe`, installed under `/usr/lib64/tobii-faithful/`. That
+`tobii-sesp-bridge.exe`, installed under `/usr/lib64/tobii-faithful/` (`/usr/lib/tobii-faithful/` on Arch). That
 executable also contains GCC runtime support code, which is covered by the GCC
 Runtime Library Exception and places no conditions on it.
 
@@ -63,4 +96,4 @@ Runtime Library Exception and places no conditions on it.
 
 These are not distributed with tobii-faithful. The programs use your
 distribution's packages at run time, and each package carries its own licence:
-OpenCV, ONNX Runtime, libusb, GLFW, OpenSSL, systemd and the C/C++ runtime.
+libusb, GLFW, OpenSSL, OpenGL, systemd and the C/C++ runtime.

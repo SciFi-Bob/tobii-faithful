@@ -3,6 +3,10 @@
 %{!?tf_release: %global tf_release 1}
 %{!?tf_url:     %global tf_url https://github.com/SciFi-Bob/tobii-faithful}
 %{!?tf_date:    %global tf_date Fri Oct 09 2026}
+%global __provides_exclude_from ^%{_libdir}/tobii-faithful/.*$
+%if %{defined tf_deps}
+%global __requires_exclude ^libonnxruntime\\.so.*$
+%endif
 
 Name:           tobii-faithful
 Version:        %{tf_version}
@@ -24,8 +28,10 @@ BuildRequires:  pkgconfig(glfw3)
 BuildRequires:  pkgconfig(libsystemd)
 BuildRequires:  pkgconfig(systemd)
 BuildRequires:  pkgconfig(gl)
+%if %{undefined tf_deps}
 BuildRequires:  opencv-devel
 BuildRequires:  onnxruntime-devel
+%endif
 BuildRequires:  systemd-rpm-macros
 
 Requires:       xrandr
@@ -44,7 +50,7 @@ the tracker is awake. The tracker is opened only while something needs it.
 %autosetup
 
 %build
-%cmake -G Ninja \
+%cmake -G Ninja %{?tf_deps:-C %{tf_deps}/deps.cmake} \
     -DBUILD_SHARED_LIBS=OFF \
     -DBUILD_TESTING=OFF \
     -DTOBII_REQUIRE_BRIDGE=ON \
