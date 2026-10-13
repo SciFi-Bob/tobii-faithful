@@ -1,0 +1,135 @@
+#!/bin/bash
+
+main() {
+    set -uo pipefail
+    local yes=0
+    for arg in "$@"; do
+        case "$arg" in
+            -y|--yes) yes=1 ;;
+            -h|--help) usage; return 0 ;;
+            *) echo "unknown option: $arg (try --help)" >&2; return 2 ;;
+        esac
+    done
+
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "Run this as root: sudo $0 $*" >&2
+        return 1
+    fi
+
+    local -a homes=()
+    local -a uids=()
+    collect_users
+
+    echo "This removes tobii-faithful and all of its data, for every user:"
+    echo "  calibrations, profiles, games lists, event logs, and the bridge"
+    echo "  copied into each game's Wine prefix. It cannot be undone."
+    if [ "$yes" -eq 0 ]; then
+        local answer
+        read -r -p "Continue? [y/N] " answer
+        case "$answer" in y|Y|yes|YES) ;; *) echo "Nothing was changed."; return 1 ;; esac
+    fi
+
+    stop_everything
+    remove_package || return 1
+
+    local i
+    for i in "${!homes[@]}"; do
+        clean_user "${homes[$i]}" "${uids[$i]}"
+    done
+    clean_system
+
+    local self
+    self="$(readlink -f "$0")"
+    case "$self" in
+        /usr/bin/tobii-faithful-uninstall|/usr/local/bin/tobii-faithful-uninstall)
+            rm -f -- "$self" ;;
+    esac
+
+    echo "tobii-faithful is removed. A new version can now be installed cleanly."
+}
+
+usage() {
+    cat <<'EOT'
+Remove tobii-faithful and everything it left behind, for every user.
+
+  sudo tobii-faithful-uninstall [--yes]
+
+Removes the package, then each user's calibrations, profile, games list and
+event log, the bridge copied into each game's Wine prefix, the sockets, and
+any /tmp fallbacks. Asks first unless --yes is given.
+EOT
+}
+
+collect_users() {
+    local uid home
+    while IFS=: read -r _ _ uid _ _ home _; do
+        [ "$uid" -ge 1000 ] 2>/dev/null || continue
+        [ "$uid" -eq 65534 ] && continue
+        [ -d "$home" ] || continue
+        homes+=("$home")
+        uids+=("$uid")
+    done < <(getent passwd)
+}
+
+stop_everything() {
+    echo "== stopping tobii-faithful"
+    local uid user
+    for uid in $(loginctl list-users --no-legend 2>/dev/null | awk '{print $1}'); do
+        user="$(id -nu "$uid" 2>/dev/null)" || continue
+        systemctl is-active --quiet "user@$uid.service" || continue
+        systemctl --user --machine="$user@" stop tobiid.service tobii-adapter.service \
+            tobii-tray-first-start.service >/dev/null 2>&1 || :
+    done
+    local p
+    for p in tobii-tray tobii-manager tobii-adapter tobiid; do
+        pkill -x "$p" >/dev/null 2>&1 || :
+    done
+    pkill -f tobii-sesp-bridge.exe >/dev/null 2>&1 || :
+}
+
+remove_package() {
+    if command -v rpm >/dev/null 2>&1 && rpm -q tobii-faithful >/dev/null 2>&1; then
+        echo "== removing the package (dnf)"
+        dnf -y remove tobii-faithful || { echo "dnf could not remove the package" >&2; return 1; }
+    elif command -v pacman >/dev/null 2>&1 && pacman -Q tobii-faithful >/dev/null 2>&1; then
+        echo "== removing the package (pacman)"
+        pacman -R --noconfirm tobii-faithful || {
+            echo "pacman could not remove the package" >&2; return 1; }
+    else
+        echo "== the package is not installed; cleaning up what is left"
+    fi
+}
+
+clean_user() {
+    local home="$1" uid="$2"
+    local games="$home/.config/tobii-faithful/games.conf"
+    if [ -f "$games" ]; then
+        local key prefix
+        while IFS=$'\t' read -r key _ _ prefix _; do
+            [ "$key" = game ] || continue
+            [ -n "$prefix" ] && [ -d "$prefix/drive_c" ] || continue
+            rm -rf -- "$prefix/drive_c/ProgramData/tobii-faithful"
+        done < "$games"
+    fi
+
+    rm -rf -- "$home/.config/tobii-faithful" \
+              "$home/.local/share/tobii-faithful" \
+              "$home/.local/state/tobii-faithful"
+    if [ -d "$home/.config/systemd/user" ]; then
+        find "$home/.config/systemd/user" -type l \
+             \( -name 'tobiid.service' -o -name 'tobii-adapter.service' \) -delete 2>/dev/null
+    fi
+    rm -f -- "/run/user/$uid/tobiid.sock" "/run/user/$uid/tobiid.sock.lock" \
+             "/tmp/tobiid-$uid.sock" "/tmp/tobiid-$uid.sock.lock"
+}
+
+clean_system() {
+    rm -rf -- /tmp/tobii-profile.conf /tmp/tobii-calibrations \
+              /tmp/tobii-faithful-events.log /run/tobii-faithful
+    find /etc/systemd/user -type l \
+         \( -name 'tobiid.service' -o -name 'tobii-adapter.service' \) -delete 2>/dev/null
+    rm -rf -- /usr/lib64/tobii-faithful /usr/lib/tobii-faithful /usr/share/tobii-faithful
+    udevadm control --reload-rules >/dev/null 2>&1 || :
+}
+
+main "$@"; exit $?

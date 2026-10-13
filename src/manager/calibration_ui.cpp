@@ -113,6 +113,11 @@ void CalibrationUi::ResolveInitialMonitor(GLFWwindow* window) {
         return;
     }
 
+    if (count == 1) {
+        SetMonitor(0);
+        return;
+    }
+
     monitor_index_ = -1;
 }
 
@@ -128,11 +133,11 @@ void CalibrationUi::SetMonitor(int index) {
     const std::string name =
         index >= 0 && index < static_cast<int>(keys.size())
             ? keys[static_cast<std::size_t>(index)] : std::string();
+    monitor_index_ = index;
     if (index == profile_.display.monitor_index &&
         name == profile_.display.monitor_name) {
         return;
     }
-    monitor_index_ = index;
     calibration::Profile current;
     if (current.Load(profile_path_)) profile_ = current;
     profile_.display.monitor_index = index;

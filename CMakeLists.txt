@@ -118,6 +118,8 @@ install(FILES configs/desktop/tobii-faithful.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
 install(FILES configs/desktop/tobii-tray.desktop
         DESTINATION ${CMAKE_INSTALL_FULL_SYSCONFDIR}/xdg/autostart)
+install(PROGRAMS configs/uninstall/tobii-faithful-uninstall
+        DESTINATION ${CMAKE_INSTALL_BINDIR})
 pkg_get_variable(SYSTEMD_USER_UNIT_DIR systemd systemduserunitdir)
 if(NOT SYSTEMD_USER_UNIT_DIR)
     set(SYSTEMD_USER_UNIT_DIR "lib/systemd/user")

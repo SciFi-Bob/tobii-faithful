@@ -444,7 +444,10 @@ int main(int argc, char** argv) {
         const std::string games_path = tobii::games::Catalogue::DefaultPath();
         tobii::games::Catalogue catalogue;
         catalogue.Load(games_path);
-        const std::size_t added = catalogue.Merge(catalogue.Scan());
+        std::vector<std::string> searched;
+        const auto found = catalogue.Scan(&searched);
+        const std::size_t added = catalogue.Merge(found);
+        tobii::games::RecordSearch(searched, found.size(), added);
         if (added > 0) catalogue.Save(games_path);
     }
 

@@ -61,7 +61,9 @@ the tracker is awake. The tracker is opened only while something needs it.
 
 %install
 %cmake_install
-strip --strip-all %{buildroot}%{_bindir}/*
+for f in %{buildroot}%{_bindir}/*; do
+    [ "$(head -c4 "$f")" = $'\x7fELF' ] && strip --strip-all "$f"
+done
 install -Dpm0644 configs/udev/60-tobii-eyetracker5.rules \
     %{buildroot}%{_udevrulesdir}/60-tobii-eyetracker5.rules
 install -dm0755 %{buildroot}%{_userpresetdir}
@@ -116,6 +118,7 @@ fi
 %{_bindir}/tobii-adapter
 %{_bindir}/tobii-manager
 %{_bindir}/tobii-tray
+%{_bindir}/tobii-faithful-uninstall
 %{_libdir}/tobii-faithful/
 %{_datadir}/tobii-faithful/
 %{_datadir}/applications/tobii-faithful.desktop

@@ -171,7 +171,10 @@ int main(int argc, char** argv) {
     const std::string games_path = tobii::games::Catalogue::DefaultPath();
     tobii::games::Catalogue catalogue;
     catalogue.Load(games_path);
-    const std::size_t onboarded = catalogue.Merge(catalogue.Scan());
+    std::vector<std::string> searched;
+    const auto scanned = catalogue.Scan(&searched);
+    const std::size_t onboarded = catalogue.Merge(scanned);
+    tobii::games::RecordSearch(searched, scanned.size(), onboarded);
     if (onboarded > 0) catalogue.Save(games_path);
     std::string games_status =
         catalogue.games().empty() ? "no games with the Tobii integration found yet"
@@ -185,6 +188,7 @@ int main(int argc, char** argv) {
     bool monitor_resolved = false;
     bool content_clipped = false;
     int frames_drawn = 0;
+    int resolved_count = 0;
 
     bool holding_device = true;
     tobii::manager::PoseEasing easing;
@@ -282,8 +286,17 @@ int main(int argc, char** argv) {
             continue;
         }
 
+        if (monitor_resolved && calibration.monitor() < 0) {
+            int now = 0;
+            glfwGetMonitors(&now);
+            if (now != resolved_count) {
+                resolved_count = now;
+                calibration.ResolveInitialMonitor(window);
+            }
+        }
         if (!monitor_resolved && ++frames_drawn > 3) {
             monitor_resolved = true;
+            glfwGetMonitors(&resolved_count);
             calibration.ResolveInitialMonitor(window);
             const int mon = calibration.monitor();
             int mcount = 0;
@@ -399,7 +412,7 @@ int main(int argc, char** argv) {
         const int chosen_monitor = calibration.monitor();
         const bool screen_selected = chosen_monitor >= 0;
         {
-            static std::vector<std::string> monitors =
+            const std::vector<std::string> monitors =
                 tobii::manager::CalibrationUi::MonitorNames();
             const bool valid = screen_selected &&
                                chosen_monitor < static_cast<int>(monitors.size());
@@ -477,8 +490,10 @@ int main(int argc, char** argv) {
         ImGui::Spacing();
 
         if (ImGui::Button("Detect Games", {160, 32})) {
-            const auto found = catalogue.Scan();
+            std::vector<std::string> searched;
+            const auto found = catalogue.Scan(&searched);
             const std::size_t added = catalogue.Merge(found);
+            tobii::games::RecordSearch(searched, found.size(), added);
             catalogue.Save(games_path);
             char buf[160];
             std::snprintf(buf, sizeof(buf), "found %zu, %zu new", found.size(), added);
@@ -532,12 +547,13 @@ int main(int argc, char** argv) {
             ImGui::SameLine();
             if (ImGui::Button("Add Folder", {110, 0}) && new_root[0] != '\0') {
                 catalogue.AddRoot(new_root);
-                const auto found = catalogue.Scan();
+                std::vector<std::string> searched;
+                const auto found = catalogue.Scan(&searched);
                 const std::size_t added = catalogue.Merge(found);
+                tobii::games::RecordSearch(searched, found.size(), added);
                 catalogue.Save(games_path);
                 char buf[160];
-                std::snprintf(buf, sizeof(buf), "searched %s: found %zu, %zu new",
-                              new_root, found.size(), added);
+                std::snprintf(buf, sizeof(buf), "found %zu, %zu new", found.size(), added);
                 games_status = buf;
                 new_root[0] = '\0';
             }

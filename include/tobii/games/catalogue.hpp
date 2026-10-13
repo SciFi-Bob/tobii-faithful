@@ -20,7 +20,7 @@ public:
     bool Save(const std::string& path) const;
     static std::string DefaultPath();
 
-    std::vector<Game> Scan() const;
+    std::vector<Game> Scan(std::vector<std::string>* searched = nullptr) const;
 
     static std::optional<Game> ScanPrefix(const std::string& prefix);
 
@@ -38,6 +38,9 @@ private:
     std::vector<Game> games_;
     std::vector<std::string> roots_;
 };
+
+void RecordSearch(const std::vector<std::string>& searched, std::size_t found,
+                  std::size_t added);
 
 std::vector<std::string> DefaultSearchRoots();
 

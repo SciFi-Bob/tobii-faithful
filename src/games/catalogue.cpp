@@ -1,5 +1,7 @@
 #include "tobii/games/catalogue.hpp"
 
+#include "tobii/eventlog.hpp"
+
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -188,12 +190,95 @@ std::vector<std::string> DefaultSearchRoots() {
     return roots;
 }
 
-void Catalogue::AddRoot(const std::string& path) {
-    if (path.empty()) return;
-    if (std::find(roots_.begin(), roots_.end(), path) == roots_.end()) roots_.push_back(path);
+namespace {
+
+constexpr int kRootDepth = 8;
+
+fs::path Resolved(const std::string& path) {
+    std::error_code ec;
+    const fs::path canon = fs::weakly_canonical(path, ec);
+    return ec || canon.empty() ? fs::path(path) : canon;
 }
 
-std::vector<Game> Catalogue::Scan() const {
+bool Covers(const fs::path& outer, const fs::path& inner) {
+    auto o = outer.begin();
+    auto i = inner.begin();
+    for (; o != outer.end(); ++o, ++i) {
+        if (o->empty()) continue;
+        if (i == inner.end() || *o != *i) return false;
+    }
+    int below = 0;
+    for (; i != inner.end(); ++i) {
+        if (!i->empty()) ++below;
+    }
+    return below < kRootDepth;
+}
+
+std::string TidyRoot(const std::string& path) {
+    const std::size_t first = path.find_first_not_of(" \t");
+    if (first == std::string::npos) return {};
+    std::string p = path.substr(first, path.find_last_not_of(" \t") - first + 1);
+    if (p == "~" || p.rfind("~/", 0) == 0) p = Home() + p.substr(1);
+
+    fs::path full(p);
+    if (full.is_relative()) {
+        std::error_code ec;
+        full = fs::current_path(ec) / full;
+    }
+    fs::path kept;
+    for (const auto& part : full.lexically_normal()) {
+        if (part == "drive_c") break;
+        kept /= part;
+    }
+    std::string out = kept.string();
+    while (out.size() > 1 && out.back() == '/') out.pop_back();
+    return out;
+}
+
+void WalkRoot(const fs::path& dir, int depth, std::vector<fs::path>& prefixes,
+              std::vector<fs::path>& libraries) {
+    std::error_code ec;
+    const auto add = [](std::vector<fs::path>& to, const fs::path& p) {
+        if (std::find(to.begin(), to.end(), p) == to.end()) to.push_back(p);
+    };
+    if (fs::exists(dir / "drive_c", ec)) { add(prefixes, dir); return; }
+    if (fs::exists(dir / "pfx" / "drive_c", ec)) { add(prefixes, dir / "pfx"); return; }
+    if (fs::exists(dir / "steamapps", ec)) { add(libraries, dir); return; }
+    if (depth >= kRootDepth) return;
+    for (fs::directory_iterator it(dir, fs::directory_options::skip_permission_denied, ec);
+         it != fs::directory_iterator(); it.increment(ec)) {
+        if (ec) break;
+        if (it->is_directory(ec)) WalkRoot(it->path(), depth + 1, prefixes, libraries);
+    }
+}
+
+}
+
+void RecordSearch(const std::vector<std::string>& searched, std::size_t found,
+                  std::size_t added) {
+    std::string line = "Game search:";
+    for (std::size_t i = 0; i < searched.size(); ++i) {
+        line += (i == 0 ? " " : ", ") + searched[i];
+    }
+    if (searched.empty()) line += " (no folders to search)";
+    line += ": found " + std::to_string(found) + ", " + std::to_string(added) + " new";
+    eventlog::Record(line);
+}
+
+void Catalogue::AddRoot(const std::string& path) {
+    const std::string root = TidyRoot(path);
+    if (root.empty()) return;
+    const fs::path resolved = Resolved(root);
+    for (const auto& r : roots_) {
+        if (Covers(Resolved(r), resolved)) return;
+    }
+    roots_.erase(std::remove_if(roots_.begin(), roots_.end(), [&](const std::string& r) {
+        return Covers(resolved, Resolved(r));
+    }), roots_.end());
+    roots_.push_back(root);
+}
+
+std::vector<Game> Catalogue::Scan(std::vector<std::string>* searched) const {
     std::vector<std::string> roots = roots_;
     for (const auto& r : DefaultSearchRoots()) {
         if (std::find(roots.begin(), roots.end(), r) == roots.end()) roots.push_back(r);
@@ -203,19 +288,12 @@ std::vector<Game> Catalogue::Scan() const {
     std::error_code ec;
 
     std::vector<fs::path> prefixes;
-    const auto consider = [&](const fs::path& candidate) {
-        if (fs::exists(candidate / "drive_c", ec)) prefixes.push_back(candidate);
-        if (fs::exists(candidate / "pfx" / "drive_c", ec)) prefixes.push_back(candidate / "pfx");
-    };
+    std::vector<fs::path> root_libraries;
     for (const auto& root : roots) {
         const fs::path base(root);
         if (!fs::exists(base, ec)) continue;
-        consider(base);
-        for (fs::directory_iterator it(base, fs::directory_options::skip_permission_denied, ec);
-             it != fs::directory_iterator(); it.increment(ec)) {
-            if (ec) break;
-            if (it->is_directory(ec)) consider(it->path());
-        }
+        if (searched != nullptr) searched->push_back(root);
+        WalkRoot(base, 0, prefixes, root_libraries);
     }
 
     for (const auto& prefix : prefixes) {
@@ -228,16 +306,17 @@ std::vector<Game> Catalogue::Scan() const {
     }
 
     std::vector<fs::path> libraries = SteamLibraries();
-    for (const auto& root : roots) {
-        const fs::path base(root);
-        if (!fs::exists(base / "steamapps", ec)) continue;
-        const fs::path canon = fs::weakly_canonical(base, ec);
-        const fs::path key = ec ? base : canon;
+    for (const auto& lib : root_libraries) {
+        const fs::path key = Resolved(lib.string());
         if (std::find(libraries.begin(), libraries.end(), key) == libraries.end()) {
             libraries.push_back(key);
         }
     }
     for (const auto& lib : libraries) {
+        if (searched != nullptr &&
+            std::find(searched->begin(), searched->end(), lib.string()) == searched->end()) {
+            searched->push_back(lib.string());
+        }
         std::vector<Game> steam;
         ScanSteamLibraryInto(lib, steam);
         for (auto& game : steam) {
@@ -332,7 +411,7 @@ bool Catalogue::Load(const std::string& path) {
         const std::size_t first = line.find('\t');
         const std::string key = line.substr(0, first);
         if (key == "root" && first != std::string::npos) {
-            roots_.push_back(line.substr(first + 1));
+            AddRoot(line.substr(first + 1));
             continue;
         }
         if (key != "game" || first == std::string::npos) continue;
