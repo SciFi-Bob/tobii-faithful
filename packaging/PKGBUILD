@@ -28,7 +28,8 @@ build() {
         -DTOBII_REQUIRE_BRIDGE=ON \
         -DTOBII_INSTALL_UDEV_RULES=OFF \
         -DTOBII_SYSTEMD_USER_UNIT_DIR=/usr/lib/systemd/user \
-        -DTOBII_PROJECT_URL="$url"
+        -DTOBII_PROJECT_URL="$url" \
+        -DTOBII_VERSION="$pkgver"
     cmake --build build
 }
 

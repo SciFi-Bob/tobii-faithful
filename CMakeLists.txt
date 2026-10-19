@@ -28,6 +28,18 @@ option(TOBII_INSTALL_UDEV_RULES
 set(TOBII_PROJECT_URL "https://github.com/SciFi-Bob/tobii-faithful"
     CACHE STRING "Project home, written into the unit files' Documentation=")
 
+if(NOT DEFINED TOBII_VERSION)
+  if(EXISTS "${CMAKE_SOURCE_DIR}/public_ver.md")
+    file(READ "${CMAKE_SOURCE_DIR}/public_ver.md" TOBII_VERSION)
+    string(STRIP "${TOBII_VERSION}" TOBII_VERSION)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                 "${CMAKE_SOURCE_DIR}/public_ver.md")
+  else()
+    set(TOBII_VERSION "unknown")
+  endif()
+endif()
+message(STATUS "tobii-faithful version: ${TOBII_VERSION}")
+
 find_package(PkgConfig REQUIRED)
 
 find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs)

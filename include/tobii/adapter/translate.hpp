@@ -15,7 +15,16 @@ static_assert(sizeof(PosePacket) == 12 * sizeof(double), "bridge expects 12 pack
 
 bool PosePacketFromLine(const std::string& line, std::uint64_t counter, PosePacket& out);
 
-bool HeadPosePacketFromLine(const std::string& line, std::uint64_t counter, PosePacket& out);
+struct HeadPoseHold {
+    bool have_pos = false;
+    double pos[3] = {0, 0, 600};
+    bool have_rot[3] = {false, false, false};
+    double rot[3] = {0, 0, 0};
+};
+bool HeadPosePacketFromLine(const std::string& line, std::uint64_t counter, PosePacket& out,
+                            HeadPoseHold* hold = nullptr);
+
+void ApplyAxisMask(PosePacket& packet, std::uint8_t axes);
 
 bool PresentFromLine(const std::string& line);
 

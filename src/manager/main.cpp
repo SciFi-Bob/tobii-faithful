@@ -31,6 +31,8 @@ namespace {
 constexpr float kAxesPaneWidth = 480.0f;
 constexpr float kPaneHeight = 512.0f;
 
+constexpr const char* kVersionLine = "Version " TOBII_VERSION;
+
 std::string DefaultProfilePath() {
     return tobii::calibration::Profile::DefaultPath();
 }
@@ -225,11 +227,13 @@ int main(int argc, char** argv) {
                 const ImGuiStyle& style = ImGui::GetStyle();
                 const ImVec2 body = ImGui::CalcTextSize(tobii::kAboutText);
                 const ImVec2 heading = ImGui::CalcTextSize(tobii::kProductName);
+                const ImVec2 version = ImGui::CalcTextSize(kVersionLine);
                 const int w = static_cast<int>(
-                    std::max(body.x, heading.x) + style.WindowPadding.x * 2.0f + 8.0f);
+                    std::max({body.x, heading.x, version.x}) + style.WindowPadding.x * 2.0f +
+                    8.0f);
                 const int h = static_cast<int>(
-                    heading.y + body.y + 32.0f + style.WindowPadding.y * 2.0f +
-                    style.ItemSpacing.y * 5.0f + 6.0f);
+                    heading.y + version.y + body.y + 32.0f + style.WindowPadding.y * 2.0f +
+                    style.ItemSpacing.y * 6.0f + 6.0f);
                 glfwSetWindowSize(window, w, h);
                 glfwSetWindowSizeLimits(window, w, h, w, h);
             }
@@ -241,6 +245,7 @@ int main(int argc, char** argv) {
                          ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
                          ImGuiWindowFlags_NoScrollbar);
             ImGui::TextUnformatted(tobii::kProductName);
+            ImGui::TextUnformatted(kVersionLine);
             ImGui::Separator();
             ImGui::Spacing();
             ImGui::TextUnformatted(tobii::kAboutText);
@@ -509,11 +514,12 @@ int main(int argc, char** argv) {
             ImGui::TextDisabled("(%s)", games_status.c_str());
         }
 
-        ImGui::SetNextWindowSize({720, 420}, ImGuiCond_Appearing);
+        ImGui::SetNextWindowSize({900, 420}, ImGuiCond_Appearing);
         if (ImGui::BeginPopupModal("Enabled Games", nullptr,
                                    ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoResize)) {
             ImGui::TextWrapped("List of detected Tobii enabled games, un-tick a title to "
                                "disable native Tobii support");
+            ImGui::TextWrapped("Untick an axis to keep it centred in that game.");
             ImGui::Spacing();
             ImGui::Separator();
 
@@ -524,19 +530,84 @@ int main(int argc, char** argv) {
             ImGui::BeginChild("gameslist", {0.0f, -footer_h}, true);
             if (catalogue.games().empty()) {
                 ImGui::TextDisabled("nothing detected yet");
-            } else {
-                for (std::size_t i = 0; i < catalogue.games().size(); ++i) {
+            } else if (ImGui::BeginTable("games", 7,
+                                         ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV |
+                                         ImGuiTableFlags_SizingFixedFit)) {
+                struct AxisColumn {
+                    const char* label;
+                    const char* id;
+                    std::uint8_t bit;
+                };
+                static constexpr AxisColumn kColumns[] = {
+                    {"Fwd/Bck", "##lfb", tobii::games::kAxisLeanFB},
+                    {"Lft/Rgt", "##llr", tobii::games::kAxisLeanLR},
+                    {"Up/Dn", "##lud", tobii::games::kAxisLeanUD},
+                    {"Pitch", "##pitch", tobii::games::kAxisPitch},
+                    {"Yaw", "##yaw", tobii::games::kAxisYaw},
+                    {"Roll", "##roll", tobii::games::kAxisRoll},
+                };
+                ImGui::TableSetupColumn("Game", ImGuiTableColumnFlags_WidthStretch);
+                for (const auto& c : kColumns) {
+                    ImGui::TableSetupColumn(c.label, ImGuiTableColumnFlags_WidthFixed, 64.0f);
+                }
+
+                const auto centred = [](const char* text) {
+                    const float w = ImGui::CalcTextSize(text).x;
+                    ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
+                                         std::max(0.0f, (ImGui::GetColumnWidth() - w) * 0.5f));
+                    ImGui::TextUnformatted(text);
+                };
+                ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+                ImGui::TableSetColumnIndex(2);
+                centred("Lean");
+                ImGui::TableSetColumnIndex(5);
+                centred("Rotation");
+                ImGui::TableHeadersRow();
+
+                const auto& games = catalogue.games();
+                for (std::size_t i = 0; i < games.size(); ++i) {
                     auto& game = catalogue.games()[i];
                     ImGui::PushID(static_cast<int>(300 + i));
+                    ImGui::TableNextRow();
+
+                    std::size_t same = 0, nth = 0;
+                    for (std::size_t j = 0; j < games.size(); ++j) {
+                        if (games[j].name != game.name) continue;
+                        ++same;
+                        if (j <= i) ++nth;
+                    }
+                    const std::string label =
+                        same > 1 && nth > 1 ? game.name + " (" + std::to_string(nth) + ")"
+                                            : game.name;
+
+                    ImGui::TableSetColumnIndex(0);
                     bool on = game.enabled;
-                    if (ImGui::Checkbox(game.name.c_str(), &on)) {
+                    if (ImGui::Checkbox(label.c_str(), &on)) {
                         game.enabled = on;
                         catalogue.Save(games_path);
                     }
-                    ImGui::SameLine();
-                    ImGui::TextDisabled("%s", game.prefix.c_str());
+                    ImGui::SetItemTooltip("Prefix: %s\nDLL: %s", game.prefix.c_str(),
+                                          game.dll_path.c_str());
+
+                    ImGui::BeginDisabled(!game.enabled);
+                    for (int c = 0; c < 6; ++c) {
+                        ImGui::TableSetColumnIndex(c + 1);
+                        ImGui::SetCursorPosX(
+                            ImGui::GetCursorPosX() +
+                            std::max(0.0f, (ImGui::GetColumnWidth() - ImGui::GetFrameHeight()) *
+                                               0.5f));
+                        bool axis_on = (game.axes & kColumns[c].bit) != 0;
+                        if (ImGui::Checkbox(kColumns[c].id, &axis_on)) {
+                            game.axes = axis_on
+                                ? static_cast<std::uint8_t>(game.axes | kColumns[c].bit)
+                                : static_cast<std::uint8_t>(game.axes & ~kColumns[c].bit);
+                            catalogue.Save(games_path);
+                        }
+                    }
+                    ImGui::EndDisabled();
                     ImGui::PopID();
                 }
+                ImGui::EndTable();
             }
             ImGui::EndChild();
 

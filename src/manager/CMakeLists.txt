@@ -10,4 +10,5 @@ add_executable(tobii-manager
 target_link_libraries(tobii-manager PRIVATE imgui tobii-calibration tobii-device-calib
                       tobii-games tobii-ipc tobii-eventlog tobii-opencv)
 target_include_directories(tobii-manager PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_definitions(tobii-manager PRIVATE TOBII_VERSION="${TOBII_VERSION}")
 install(TARGETS tobii-manager RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

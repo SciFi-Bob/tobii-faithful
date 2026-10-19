@@ -20,6 +20,7 @@
 #include <poll.h>
 #include <string>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <vector>
@@ -65,7 +66,7 @@ tobii::adapter::DisplayGeometry DetectPrimaryDisplay() {
 class PrefixJudge {
 public:
     bool Serves(const tobii::games::Catalogue& catalogue, const std::string& prefix) {
-        if (const auto* known = catalogue.ForPrefix(prefix); known != nullptr) return true;
+        if (const auto* known = catalogue.Find(prefix); known != nullptr) return known->enabled;
         const auto seen = judged_.find(prefix);
         if (seen != judged_.end()) return seen->second.has_value();
 
@@ -81,7 +82,7 @@ public:
 
     std::string NameFor(const tobii::games::Catalogue& catalogue,
                         const std::string& prefix) const {
-        if (const auto* known = catalogue.ForPrefix(prefix); known != nullptr) return known->name;
+        if (const auto* known = catalogue.Find(prefix); known != nullptr) return known->name;
         const auto& discovered = Discovered(prefix);
         return discovered ? discovered->name : std::string();
     }
@@ -282,6 +283,16 @@ int main(int argc, char** argv) {
     std::uint64_t counter = 0;
     bool last_face = false;
     bool official_mode = false;
+    tobii::adapter::HeadPoseHold head_pose_hold;
+    std::uint8_t game_axes = tobii::games::kAllAxes;
+    const auto games_mtime = [&] {
+        struct stat st{};
+        return ::stat(opt.games_path.c_str(), &st) == 0
+                   ? static_cast<long long>(st.st_mtim.tv_sec) * 1000000000LL + st.st_mtim.tv_nsec
+                   : 0LL;
+    };
+    long long games_loaded_mtime = games_mtime();
+    double last_games_check_s = 0.0;
 
     while (!g_stop) {
         const double now = NowSeconds();
@@ -321,6 +332,29 @@ int main(int argc, char** argv) {
             ::send(daemon_fd, req.data(), req.size(), MSG_NOSIGNAL);
         }
 
+        if (now - last_games_check_s > 0.4) {
+            last_games_check_s = now;
+            const long long mtime = games_mtime();
+            if (mtime != games_loaded_mtime) {
+                games_loaded_mtime = mtime;
+                catalogue.Load(opt.games_path);
+                if (!bridge_prefix.empty()) {
+                    const auto* game = catalogue.Find(bridge_prefix);
+                    if (game != nullptr && !game->enabled) {
+                        for (auto& bridge : bridges) StopBridge(bridge);
+                        bridges.clear();
+                        bridge_prefix.clear();
+                        bridge_up_since_s = 0.0;
+                        game_running = false;
+                        game_axes = tobii::games::kAllAxes;
+                        tobii::eventlog::Record("Game " + game_label + " disabled");
+                    } else {
+                        game_axes = game != nullptr ? game->axes : tobii::games::kAllAxes;
+                    }
+                }
+            }
+        }
+
         if (opt.manage_bridge && bridges.empty() && now - last_prefix_scan_s > 0.4) {
             last_prefix_scan_s = now;
             game_running = false;
@@ -329,7 +363,7 @@ int main(int argc, char** argv) {
                 if (!prefix.has_game_process) continue;
                 game_running = true;
 
-                if (catalogue.ForPrefix(prefix.path) == nullptr) {
+                if (catalogue.Find(prefix.path) == nullptr) {
                     if (const auto& discovered = judge.Discovered(prefix.path); discovered) {
                         if (catalogue.Merge({*discovered}) > 0) {
                             catalogue.Save(opt.games_path);
@@ -395,6 +429,8 @@ int main(int argc, char** argv) {
                     bridge_prefix = prefix.path;
                     bridge_up_since_s = now;
                     game_label = GameLabel(judge.NameFor(catalogue, prefix.path), prefix.path);
+                    const auto* game = catalogue.Find(prefix.path);
+                    game_axes = game != nullptr ? game->axes : tobii::games::kAllAxes;
                     gaze_recorded = false;
                     licence_recorded = false;
                     tobii::eventlog::Record("Game " + game_label + " started");
@@ -442,6 +478,7 @@ int main(int argc, char** argv) {
                 last_prefix_scan_s = now + std::min(30.0, 2.0 * bridge_failures);
                 bridge_prefix.clear();
                 bridge_up_since_s = 0.0;
+                game_axes = tobii::games::kAllAxes;
             } else if (now - last_liveness_s > 0.4) {
                 last_liveness_s = now;
                 if (!GameStillRunning(catalogue, judge)) {
@@ -450,6 +487,7 @@ int main(int argc, char** argv) {
                     bridge_prefix.clear();
                     bridge_up_since_s = 0.0;
                     game_running = false;
+                    game_axes = tobii::games::kAllAxes;
                 }
             }
         }
@@ -498,9 +536,10 @@ int main(int argc, char** argv) {
                     }
 
                     tobii::adapter::PosePacket packet{};
-                    if (tobii::adapter::HeadPosePacketFromLine(line, counter, packet)) {
+                    if (tobii::adapter::HeadPosePacketFromLine(line, counter, packet, &head_pose_hold)) {
                         official_mode = true;
                         ++counter;
+                        tobii::adapter::ApplyAxisMask(packet, game_axes);
                         ::sendto(pose_fd, &packet, sizeof(packet), 0,
                                  reinterpret_cast<sockaddr*>(&pose_addr), sizeof(pose_addr));
                         continue;
@@ -511,6 +550,7 @@ int main(int argc, char** argv) {
                                            packet.gaze_valid != 0.0);
                     if (official_mode) continue;
                     ++counter;
+                    tobii::adapter::ApplyAxisMask(packet, game_axes);
                     ::sendto(pose_fd, &packet, sizeof(packet), 0,
                              reinterpret_cast<sockaddr*>(&pose_addr), sizeof(pose_addr));
                 }

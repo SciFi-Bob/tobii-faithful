@@ -9,6 +9,7 @@
 #include <iterator>
 #include <optional>
 #include <sys/stat.h>
+#include <utility>
 
 namespace tobii::games {
 namespace {
@@ -381,16 +382,30 @@ std::size_t Catalogue::Merge(const std::vector<Game>& found) {
     return added;
 }
 
-const Game* Catalogue::ForPrefix(const std::string& prefix) const {
+namespace {
+
+bool SamePrefix(const std::string& a, const std::string& b) {
+    if (a == b) return true;
+    std::error_code ec;
+    const auto ca = fs::weakly_canonical(a, ec);
+    const auto cb = fs::weakly_canonical(b, ec);
+    return !ec && !ca.empty() && ca == cb;
+}
+
+constexpr const char* kAxisNames[] = {"lean_lr", "lean_ud", "lean_fb", "yaw", "pitch", "roll"};
+
+}
+
+const Game* Catalogue::Find(const std::string& prefix) const {
     for (const auto& game : games_) {
-        if (!game.enabled) continue;
-        if (game.prefix == prefix) return &game;
-        std::error_code ec;
-        const auto a = fs::weakly_canonical(game.prefix, ec);
-        const auto b = fs::weakly_canonical(prefix, ec);
-        if (!ec && !a.empty() && a == b) return &game;
+        if (SamePrefix(game.prefix, prefix)) return &game;
     }
     return nullptr;
+}
+
+const Game* Catalogue::ForPrefix(const std::string& prefix) const {
+    const Game* game = Find(prefix);
+    return game != nullptr && game->enabled ? game : nullptr;
 }
 
 std::string Catalogue::DefaultPath() {
@@ -405,6 +420,7 @@ bool Catalogue::Load(const std::string& path) {
     if (!f) return false;
     games_.clear();
     roots_.clear();
+    std::vector<std::pair<std::string, std::uint8_t>> axes_lines;
     std::string line;
     while (std::getline(f, line)) {
         if (line.empty() || line[0] == '#') continue;
@@ -412,6 +428,23 @@ bool Catalogue::Load(const std::string& path) {
         const std::string key = line.substr(0, first);
         if (key == "root" && first != std::string::npos) {
             AddRoot(line.substr(first + 1));
+            continue;
+        }
+        if (key == "axes" && first != std::string::npos) {
+            const std::size_t second = line.find('\t', first + 1);
+            const std::string prefix = line.substr(
+                first + 1, second == std::string::npos ? std::string::npos : second - first - 1);
+            std::uint8_t axes = kAllAxes;
+            for (std::size_t pos = second; pos != std::string::npos;) {
+                const std::size_t start = pos + 1;
+                pos = line.find(',', start);
+                const std::string name = line.substr(
+                    start, pos == std::string::npos ? std::string::npos : pos - start);
+                for (int i = 0; i < 6; ++i) {
+                    if (name == kAxisNames[i]) axes &= static_cast<std::uint8_t>(~(1u << i));
+                }
+            }
+            axes_lines.emplace_back(prefix, axes);
             continue;
         }
         if (key != "game" || first == std::string::npos) continue;
@@ -432,6 +465,11 @@ bool Catalogue::Load(const std::string& path) {
         game.dll_path = fields[3];
         game.user_added = fields.size() > 4 && fields[4] == "user";
         games_.push_back(std::move(game));
+    }
+    for (const auto& [prefix, axes] : axes_lines) {
+        for (auto& game : games_) {
+            if (game.prefix == prefix) game.axes = axes;
+        }
     }
     return true;
 }
@@ -454,6 +492,9 @@ bool Catalogue::Save(const std::string& path) const {
     if (!f) return false;
     f << "# Games that ship Tobii's integration DLL, found by scanning.\n"
       << "# Fields are tab separated: game <enabled> <name> <prefix> <dll>\n"
+      << "# 'axes <prefix> <list>' holds those head-tracking axes centred in that\n"
+      << "# game; the list is comma separated from lean_lr, lean_ud, lean_fb, yaw,\n"
+      << "# pitch, roll.\n"
       << "# Add 'root <tab> /path/to/search' to look somewhere unusual.\n\n";
     for (const auto& root : roots_) f << "root\t" << root << "\n";
     if (!roots_.empty()) f << "\n";
@@ -461,6 +502,17 @@ bool Catalogue::Save(const std::string& path) const {
         f << "game\t" << (game.enabled ? 1 : 0) << '\t' << game.name << '\t'
           << game.prefix << '\t' << game.dll_path
           << (game.user_added ? "\tuser" : "") << "\n";
+    }
+    for (const auto& game : games_) {
+        if (game.axes == kAllAxes) continue;
+        f << "axes\t" << game.prefix << '\t';
+        bool first = true;
+        for (int i = 0; i < 6; ++i) {
+            if (game.axes & (1u << i)) continue;
+            f << (first ? "" : ",") << kAxisNames[i];
+            first = false;
+        }
+        f << "\n";
     }
     return static_cast<bool>(f);
 }

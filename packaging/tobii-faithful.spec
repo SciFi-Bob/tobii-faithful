@@ -56,7 +56,8 @@ the tracker is awake. The tracker is opened only while something needs it.
     -DTOBII_REQUIRE_BRIDGE=ON \
     -DTOBII_INSTALL_UDEV_RULES=OFF \
     -DTOBII_SYSTEMD_USER_UNIT_DIR=%{_userunitdir} \
-    -DTOBII_PROJECT_URL=%{tf_url}
+    -DTOBII_PROJECT_URL=%{tf_url} \
+    -DTOBII_VERSION=%{tf_version}
 %cmake_build
 
 %install
