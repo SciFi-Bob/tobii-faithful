@@ -16,6 +16,17 @@ struct Prefix {
 
 bool IsGameProcess(const std::string& cmdline);
 
+std::string WineBinaryFrom(const std::string& exe_path);
+
+struct ProcessInPrefix {
+    pid_t pid = 0;
+    std::string prefix;
+    std::string cmdline;
+    std::string exe;
+};
+
+std::vector<Prefix> GroupByPrefix(const std::vector<ProcessInPrefix>& processes);
+
 std::vector<Prefix> FindPrefixes();
 
 std::string ServerDirFor(const std::string& prefix_path);

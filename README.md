@@ -20,7 +20,7 @@ Fedora:
 
     sudo dnf install ./tobii-faithful-*.rpm
 
-Arch Linux and Garuda:
+Arch Linux, CachyOS and Garuda:
 
     sudo pacman -U ./tobii-faithful-*.pkg.tar.zst
 
@@ -32,12 +32,19 @@ detected.
 Once you are done you can close the 'Faithful Tobii' window and the device should go back to sleep.  You can
 tell the link to a game is working if the device wakes when you start the game.
 
+In *View Detected Games* you can untick a game to stop it being served, or untick
+individual head-tracking axes (lean forward/back, left/right, up/down, pitch, yaw,
+roll) to keep them centred in that game. Changes apply straight away, even with
+the game running.
+
+To see which version you have, right click the tray icon and choose *About*.
+
 ## Upgrading
 
 Download the newer package and upgrade in place:
 
     sudo dnf upgrade ./tobii-faithful-*.rpm             # Fedora
-    sudo pacman -U ./tobii-faithful-*.pkg.tar.zst       # Arch, Garuda
+    sudo pacman -U ./tobii-faithful-*.pkg.tar.zst       # Arch, CachyOS, Garuda
 
 Your calibration and settings are kept. The tracker service and game adapter
 restart on their own; the tray and the settings window use the new version the
