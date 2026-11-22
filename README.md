@@ -20,8 +20,9 @@ Fedora:
 
     sudo dnf install ./tobii-faithful-*.rpm
 
-Arch Linux, CachyOS and Garuda:
+Arch Linux, CachyOS and Garuda (bring your system up to date first, as Arch expects):
 
+    sudo pacman -Syu
     sudo pacman -U ./tobii-faithful-*.pkg.tar.zst
 
 After the installation you should have a 'Faithful Tobii' tray icon (if you do not, start Faithful Tobii from the program menu) that will show you a closed
@@ -36,6 +37,11 @@ In *View Detected Games* you can untick a game to stop it being served, or untic
 individual head-tracking axes (lean forward/back, left/right, up/down, pitch, yaw,
 roll) to keep them centred in that game. Changes apply straight away, even with
 the game running.
+
+If only one of your eyes tracks well (a lazy or blind eye), set *Eyes to track*
+to that eye, then calibrate. Gaze then follows that eye alone, in games too,
+instead of an average the other eye pulls off target. Head tracking is not
+affected either way.
 
 To see which version you have, right click the tray icon and choose *About*.
 

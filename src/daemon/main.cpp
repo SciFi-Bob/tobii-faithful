@@ -305,7 +305,7 @@ int main(int argc, char** argv) {
             cfg.should_stop = []() { return g_stop.load(); };
             cfg.handshake = opt.handshake;
             cfg.read_device_calibration = opt.read_device_calibration;
-            cfg.enabled_eye_both = true;
+            cfg.enabled_eye = static_cast<tobii::usb::EnabledEye>(pipeline.profile().eyes);
             cfg.calibration_blob =
                 [monitor = tobii::device::MonitorIdForConnector(
                      pipeline.profile().display.monitor_name)](const std::string& serial)

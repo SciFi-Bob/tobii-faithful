@@ -44,8 +44,8 @@ public:
 
     void StartGaze(bool improve = false);
 
-    void set_enabled_eye(int eye) { enabled_eye_ = eye; }
-    int enabled_eye() const { return enabled_eye_; }
+    void set_enabled_eye(int eye);
+    int enabled_eye() const { return static_cast<int>(profile_.eyes); }
 
     void LayOutTargets(int grid, float eye_distance_mm);
     void Cancel();
@@ -98,7 +98,6 @@ private:
     std::string preroll_problem_;
     bool chain_to_gaze_ = false;
     bool improve_ = false;
-    int enabled_eye_ = 3;
     bool setup_in_progress_ = false;
     std::optional<std::string> setup_backup_;
     bool game_running_ = false;

@@ -5,7 +5,7 @@ pkgdesc="Linux runtime for the Tobii Eye Tracker 5: head tracking and gaze for g
 arch=(x86_64)
 url=${TF_URL:-https://github.com/SciFi-Bob/tobii-faithful}
 license=(Apache-2.0 MIT)
-depends=(libusb openssl glfw systemd-libs systemd libglvnd xorg-xrandr hicolor-icon-theme
+depends=(libusb libcrypto.so glfw systemd-libs systemd libglvnd xorg-xrandr hicolor-icon-theme
          gcc-libs glibc)
 makedepends=(cmake ninja mingw-w64-gcc eigen)
 optdepends=('wine: for games run under Wine or Lutris rather than Proton')

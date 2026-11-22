@@ -113,6 +113,10 @@ bool Profile::Load(const std::string& path) {
             std::string name;
             ss >> name;
             ParsePoseSolve(name, pose_solve);
+        } else if (key == "eyes") {
+            std::string name;
+            ss >> name;
+            ParseTrackedEyes(name, eyes);
         } else {
             --keys;
         }
@@ -160,6 +164,11 @@ bool Profile::Save(const std::string& path) const {
     if (pose_solve != kDefaultPoseSolve) {
         f << "# how head rotation is solved from the face mesh: mediapipe or rigid\n";
         f << "pose_solve " << PoseSolveName(pose_solve) << "\n\n";
+    }
+
+    if (eyes != TrackedEyes::kBoth) {
+        f << "# which eyes the tracker follows: left, right or both\n";
+        f << "eyes " << TrackedEyesName(eyes) << "\n\n";
     }
 
     const std::string text = f.str();

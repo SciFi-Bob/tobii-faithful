@@ -448,7 +448,7 @@ int main(int argc, char** argv) {
             const int eye_values[3] = {3, 1, 2};
             const int eye_index = calibration.enabled_eye() == 1 ? 1
                                 : calibration.enabled_eye() == 2 ? 2 : 0;
-            ImGui::TextUnformatted("Eyes to calibrate");
+            ImGui::TextUnformatted("Eyes to track");
             ImGui::SetNextItemWidth(content_right);
             if (ImGui::BeginCombo("##eyes", eye_labels[eye_index])) {
                 for (int i = 0; i < 3; ++i) {
@@ -457,6 +457,9 @@ int main(int argc, char** argv) {
                     }
                 }
                 ImGui::EndCombo();
+            }
+            if (eye_index != 0) {
+                ImGui::TextDisabled("Gaze follows this eye only. Calibrate after changing it.");
             }
             ImGui::Spacing();
 

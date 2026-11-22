@@ -146,6 +146,17 @@ void CalibrationUi::SetMonitor(int index) {
     client_.ReloadProfile();
 }
 
+void CalibrationUi::set_enabled_eye(int eye) {
+    const auto eyes = static_cast<calibration::TrackedEyes>(eye);
+    if (eyes == profile_.eyes) return;
+    calibration::Profile current;
+    if (current.Load(profile_path_)) profile_ = current;
+    profile_.eyes = eyes;
+    profile_.Save(profile_path_);
+    client_.ReloadProfile();
+    client_.SetEnabledEye(eye);
+}
+
 void CalibrationUi::StartScreenSetup() {
     if (game_running_) return;
     mark_left_ = 0.42f;
@@ -166,7 +177,9 @@ void CalibrationUi::StartSetup() {
     }
     setup_in_progress_ = true;
     std::remove(profile_path_.c_str());
+    const auto eyes = profile_.eyes;
     profile_ = calibration::Profile{};
+    profile_.eyes = eyes;
     client_.ReloadProfile();
     StartScreenSetup();
     chain_to_gaze_ = true;
@@ -191,7 +204,7 @@ void CalibrationUi::StartGaze(bool improve) {
     have_last_point_ = false;
     captured_s_ = 0.0;
     client_.CalStart();
-    client_.SetEnabledEye(enabled_eye_);
+    client_.SetEnabledEye(enabled_eye());
     client_.CalClear();
     if (improve_) client_.CalApply();
     mode_ = Mode::kGaze;
@@ -238,7 +251,7 @@ void CalibrationUi::Cancel() {
     }
     if (mode_ == Mode::kGaze) {
         client_.CalStop();
-        client_.SetEnabledEye(3);
+        client_.SetEnabledEye(enabled_eye());
         client_.CalApply();
     }
     setup_in_progress_ = false;

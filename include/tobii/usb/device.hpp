@@ -7,6 +7,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -26,7 +27,7 @@ struct DeviceConfig {
     HandshakeOrder handshake = HandshakeOrder::kLegacy;
     bool read_device_calibration = false;
     bool read_device_geometry = false;
-    bool enabled_eye_both = false;
+    std::optional<EnabledEye> enabled_eye;
     std::function<std::vector<std::uint8_t>(const std::string& serial)> calibration_blob;
     std::function<std::unique_ptr<UsbTransport>()> transport_factory;
 };

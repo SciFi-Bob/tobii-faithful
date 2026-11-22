@@ -47,8 +47,22 @@ struct DisplayArea {
     bool monitor_chosen() const { return !monitor_name.empty(); }
 };
 
+enum class TrackedEyes { kLeft = 1, kRight = 2, kBoth = 3 };
+
+inline const char* TrackedEyesName(TrackedEyes e) {
+    return e == TrackedEyes::kLeft ? "left" : e == TrackedEyes::kRight ? "right" : "both";
+}
+
+inline bool ParseTrackedEyes(const std::string& name, TrackedEyes& out) {
+    if (name == "left") { out = TrackedEyes::kLeft; return true; }
+    if (name == "right") { out = TrackedEyes::kRight; return true; }
+    if (name == "both") { out = TrackedEyes::kBoth; return true; }
+    return false;
+}
+
 struct Profile {
     DisplayArea display;
+    TrackedEyes eyes = TrackedEyes::kBoth;
     static constexpr PoseSolve kDefaultPoseSolve = PoseSolve::kRigid;
     PoseSolve pose_solve = kDefaultPoseSolve;
 

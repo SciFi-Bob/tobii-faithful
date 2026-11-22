@@ -377,9 +377,9 @@ struct Device::Impl {
                     ++seq;
                 }
             }
-            if (cfg.enabled_eye_both) {
+            if (cfg.enabled_eye) {
                 Frame reply;
-                Request(BuildSetEnabledEye(seq, EnabledEye::kBoth), seq, "set_enabled_eye", reply);
+                Request(BuildSetEnabledEye(seq, *cfg.enabled_eye), seq, "set_enabled_eye", reply);
                 ++seq;
             }
         }
