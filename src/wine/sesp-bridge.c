@@ -1,4 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
+#endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
@@ -260,11 +263,36 @@ static void drain_service_pipe(HANDLE pipe, uint32_t *channel,
     }
 }
 
+static int write_client(HANDLE client, const void *data, DWORD len, DWORD timeout_ms)
+{
+    OVERLAPPED ov;
+    memset(&ov, 0, sizeof(ov));
+    ov.hEvent = CreateEventA(NULL, TRUE, FALSE, NULL);
+    if (!ov.hEvent)
+        return -1;
+    DWORD wrote = 0;
+    int result;
+    if (WriteFile(client, data, len, &wrote, &ov)) {
+        result = 1;
+    } else if (GetLastError() != ERROR_IO_PENDING) {
+        result = -1;
+    } else if (WaitForSingleObject(ov.hEvent, timeout_ms) == WAIT_OBJECT_0) {
+        result = GetOverlappedResult(client, &ov, &wrote, FALSE) ? 1 : -1;
+    } else {
+        CancelIoEx(client, &ov);
+        result = GetOverlappedResult(client, &ov, &wrote, TRUE) ? 1 : 0;
+    }
+    CloseHandle(ov.hEvent);
+    return result;
+}
+
+#define CLIENT_REPLY_TIMEOUT_MS 1000
+#define CLIENT_FRAME_TIMEOUT_MS 100
+
 static void write_client_payload(HANDLE client, uint32_t channel)
 {
     if (client_write && client_write_len) {
-        DWORD wrote = 0;
-        WriteFile(client, client_write, client_write_len, &wrote, NULL);
+        write_client(client, client_write, client_write_len, CLIENT_REPLY_TIMEOUT_MS);
         return;
     }
 
@@ -274,8 +302,7 @@ static void write_client_payload(HANDLE client, uint32_t channel)
         reply[1] = (unsigned char)(sesp_connect_reply >> 8);
         reply[2] = (unsigned char)(sesp_connect_reply >> 16);
         reply[3] = (unsigned char)(sesp_connect_reply >> 24);
-        DWORD wrote = 0;
-        WriteFile(client, reply, sizeof(reply), &wrote, NULL);
+        write_client(client, reply, sizeof(reply), CLIENT_REPLY_TIMEOUT_MS);
     }
 }
 
@@ -399,12 +426,10 @@ static DWORD WINAPI synthetic_headpose_worker(LPVOID arg)
             roll,
             valid,
             &frame_len);
-        if (frame && frame_len) {
-            DWORD wrote = 0;
-            if (!WriteFile(writer->client, frame, frame_len, &wrote, NULL)) {
-                free(frame);
-                break;
-            }
+        if (frame && frame_len &&
+            write_client(writer->client, frame, frame_len, CLIENT_FRAME_TIMEOUT_MS) < 0) {
+            free(frame);
+            break;
         }
         free(frame);
         phase++;
@@ -688,11 +713,8 @@ static void maybe_write_sesp_reply(HANDLE client, const unsigned char *buf, DWOR
         DWORD out_len = 0;
         uint8_t req_type = 0;
         unsigned char *out = make_sesp_reply_from_request(buf + offset, frame_len, sesp_auto_reply_type, &out_len, &req_type);
-        if (out && out_len) {
-            DWORD wrote = 0;
-            WriteFile(client, out, out_len, &wrote, NULL);
-            FlushFileBuffers(client);
-        }
+        if (out && out_len)
+            write_client(client, out, out_len, CLIENT_REPLY_TIMEOUT_MS);
         free(out);
         (void)req_type;
         offset += frame_len;
@@ -769,13 +791,12 @@ static int connect_client_pipe(HANDLE service_pipe)
             0,
             NULL,
             OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL,
+            FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
             NULL);
         if (client != INVALID_HANDLE_VALUE) {
             struct SyntheticHeadposeWriter synthetic_writer;
             HANDLE synthetic_thread = NULL;
             write_client_payload(client, channel);
-            FlushFileBuffers(client);
             if ((sesp_synthetic_headpose || sesp_headpose_live) && channel == 0x2712) {
                 synthetic_writer.client = client;
                 synthetic_writer.running = 1;
@@ -805,13 +826,12 @@ static int connect_client_pipe(HANDLE service_pipe)
                     0,
                     NULL,
                     OPEN_EXISTING,
-                    FILE_ATTRIBUTE_NORMAL,
+                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
                     NULL);
                 if (client != INVALID_HANDLE_VALUE) {
                     struct SyntheticHeadposeWriter synthetic_writer;
                     HANDLE synthetic_thread = NULL;
                     write_client_payload(client, channel);
-                    FlushFileBuffers(client);
                     if ((sesp_synthetic_headpose || sesp_headpose_live) && channel == 0x2712) {
                         synthetic_writer.client = client;
                         synthetic_writer.running = 1;
@@ -858,13 +878,12 @@ static int connect_client_pipe(HANDLE service_pipe)
                 0,
                 NULL,
                 OPEN_EXISTING,
-                FILE_ATTRIBUTE_NORMAL,
+                FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
                 NULL);
             if (client != INVALID_HANDLE_VALUE) {
                 struct SyntheticHeadposeWriter synthetic_writer;
                 HANDLE synthetic_thread = NULL;
                 write_client_payload(client, channel);
-                FlushFileBuffers(client);
                 if ((sesp_synthetic_headpose || sesp_headpose_live) && channel == 0x2712) {
                     synthetic_writer.client = client;
                     synthetic_writer.running = 1;

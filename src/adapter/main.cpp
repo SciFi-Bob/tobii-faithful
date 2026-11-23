@@ -361,6 +361,7 @@ int main(int argc, char** argv) {
             for (const auto& prefix : tobii::wine::FindPrefixes()) {
                 if (!judge.Serves(catalogue, prefix.path)) continue;
                 if (!prefix.has_game_process) continue;
+                if (prefix.wine_binary.empty()) continue;
                 game_running = true;
 
                 if (catalogue.Find(prefix.path) == nullptr) {

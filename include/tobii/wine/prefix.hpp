@@ -35,7 +35,7 @@ std::string StageForPrefix(const Prefix& prefix, const std::string& exe_path);
 
 pid_t LaunchInPrefix(const std::string& prefix_path, const std::string& exe_path,
                      const std::vector<std::string>& args,
-                     const std::string& wine_binary = {},
+                     const std::string& wine_binary,
                      int* stdout_read = nullptr);
 
 }

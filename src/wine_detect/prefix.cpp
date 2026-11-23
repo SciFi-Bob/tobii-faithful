@@ -126,7 +126,7 @@ std::vector<Prefix> GroupByPrefix(const std::vector<ProcessInPrefix>& processes)
     for (const auto& process : processes) {
         if (process.prefix.empty()) continue;
         const std::string wine_binary = WineBinaryFrom(process.exe);
-        const bool game_process = IsGameProcess(process.cmdline);
+        const bool game_process = !wine_binary.empty() && IsGameProcess(process.cmdline);
         const int rank = PidRank(game_process, !wine_binary.empty());
 
         const std::string server_dir = ServerDirFor(process.prefix);
@@ -233,11 +233,10 @@ std::string StageForPrefix(const Prefix& prefix, const std::string& exe_path) {
 pid_t LaunchInPrefix(const std::string& prefix_path, const std::string& exe_path,
                      const std::vector<std::string>& args, const std::string& wine_binary,
                      int* stdout_read) {
+    if (stdout_read != nullptr) *stdout_read = -1;
+    if (wine_binary.empty()) return -1;
     int out[2] = {-1, -1};
-    if (stdout_read != nullptr) {
-        *stdout_read = -1;
-        if (::pipe2(out, O_CLOEXEC) != 0) return -1;
-    }
+    if (stdout_read != nullptr && ::pipe2(out, O_CLOEXEC) != 0) return -1;
     const pid_t pid = ::fork();
     if (pid != 0) {
         if (stdout_read != nullptr) {
@@ -263,14 +262,13 @@ pid_t LaunchInPrefix(const std::string& prefix_path, const std::string& exe_path
     }
     if (stdout_read != nullptr) ::dup2(out[1], STDOUT_FILENO);
 
-    const std::string wine = wine_binary.empty() ? std::string("wine") : wine_binary;
     std::vector<char*> argv;
-    argv.push_back(const_cast<char*>(wine.c_str()));
+    argv.push_back(const_cast<char*>(wine_binary.c_str()));
     argv.push_back(const_cast<char*>(exe_path.c_str()));
     for (const auto& a : args) argv.push_back(const_cast<char*>(a.c_str()));
     argv.push_back(nullptr);
 
-    ::execvp(wine.c_str(), argv.data());
+    ::execv(wine_binary.c_str(), argv.data());
     std::_Exit(127);
 }
 
